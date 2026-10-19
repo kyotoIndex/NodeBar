@@ -1,0 +1,8 @@
+.DS_Store
+dist/
+.build/
+*.dSYM/
+*.xcuserstate
+xcuserdata/
+.nodebar-install.*/
+*.log
