@@ -20,7 +20,9 @@ for language in en zh-Hans; do
         --requirements "=designated => identifier \"$bundle_id\"" "$stage/NodeBar.app"
     cp "$PROJECT_DIR/LICENSE" "$PROJECT_DIR/README.md" "$PROJECT_DIR/README.zh-CN.md" "$stage/"
     codesign --verify --strict "$stage/NodeBar.app"
-    lipo "$stage/NodeBar.app/Contents/MacOS/NodeBar" -verify_arch arm64 x86_64
+    for architecture in arm64 x86_64; do
+        lipo "$stage/NodeBar.app/Contents/MacOS/NodeBar" -verify_arch "$architecture"
+    done
     archive="$PROJECT_DIR/dist/NodeBar-$version-macOS-$label.zip"
     ditto -c -k "$stage" "$archive"
     echo "Packaged: $archive"
