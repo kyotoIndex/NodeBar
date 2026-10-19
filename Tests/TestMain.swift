@@ -3,6 +3,8 @@ import Foundation
 @main
 enum NodeBarTestRunner {
     static func main() throws {
+        try LocalizationTests.run()
+        print("Language selection tests passed")
         try LocalCoreTests.run()
         print("Local core and Unix socket tests passed")
         try ActiveMonitoringTests.run()

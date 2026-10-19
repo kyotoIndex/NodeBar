@@ -7,7 +7,7 @@ case "$MODE" in
     --build-only|--install) ;;
     --help|-h)
         echo "Usage: ./build.sh [--install|--build-only]"
-        echo "Environment: NODEBAR_APP_PATH, NODEBAR_BUNDLE_ID"
+        echo "Environment: NODEBAR_APP_PATH, NODEBAR_BUNDLE_ID, NODEBAR_ARCH, NODEBAR_LANGUAGE"
         exit 0 ;;
     *) echo "Unknown option: $MODE" >&2; exit 1 ;;
 esac
@@ -21,10 +21,16 @@ if ! [[ "$BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]; then
     echo "NODEBAR_BUNDLE_ID contains invalid characters." >&2
     exit 1
 fi
-case "$(uname -m)" in
+case "${NODEBAR_ARCH:-$(uname -m)}" in
     arm64) BUILD_ARCH=arm64 ;;
     x86_64) BUILD_ARCH=x86_64 ;;
+    universal) BUILD_ARCH=universal ;;
     *) echo "Unsupported Mac architecture." >&2; exit 1 ;;
+esac
+DEFAULT_LANGUAGE="${NODEBAR_LANGUAGE:-system}"
+case "$DEFAULT_LANGUAGE" in
+    system|en|zh-Hans) ;;
+    *) echo "NODEBAR_LANGUAGE must be system, en, or zh-Hans." >&2; exit 1 ;;
 esac
 
 if [ "$MODE" = --build-only ]; then
@@ -65,8 +71,17 @@ for source in "$PROJECT_DIR"/Sources/*.swift; do
     [ ! -f "$source" ] || SWIFT_SOURCES+=("$source")
 done
 echo "Building NodeBar ($BUILD_ARCH, macOS 13+)..."
-swiftc -O -target "$BUILD_ARCH-apple-macosx13.0" "${SWIFT_SOURCES[@]}" \
-    -o "$APP_STAGE/Contents/MacOS/NodeBar"
+if [ "$BUILD_ARCH" = universal ]; then
+    for architecture in arm64 x86_64; do
+        swiftc -O -target "$architecture-apple-macosx13.0" "${SWIFT_SOURCES[@]}" \
+            -o "$BUILD_DIR/NodeBar-$architecture"
+    done
+    lipo -create "$BUILD_DIR/NodeBar-arm64" "$BUILD_DIR/NodeBar-x86_64" \
+        -output "$APP_STAGE/Contents/MacOS/NodeBar"
+else
+    swiftc -O -target "$BUILD_ARCH-apple-macosx13.0" "${SWIFT_SOURCES[@]}" \
+        -o "$APP_STAGE/Contents/MacOS/NodeBar"
+fi
 
 cat > "$APP_STAGE/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -78,8 +93,11 @@ cat > "$APP_STAGE/Contents/Info.plist" <<EOF
     <key>CFBundleName</key><string>NodeBar</string>
     <key>CFBundleDisplayName</key><string>NodeBar</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.3.1</string>
-    <key>CFBundleVersion</key><string>5</string>
+    <key>CFBundleShortVersionString</key><string>0.4.0</string>
+    <key>CFBundleVersion</key><string>6</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
+    <key>NodeBarDefaultLanguage</key><string>$DEFAULT_LANGUAGE</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>

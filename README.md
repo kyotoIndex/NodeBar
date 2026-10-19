@@ -1,105 +1,126 @@
 # NodeBar
 
-macOS 菜单栏里的 Mihomo 节点监控工具。选择关心的节点或策略组，在菜单栏查看延迟，通过系统通知获知异常与恢复。
+[English](README.md) · [简体中文](README.zh-CN.md)
 
-NodeBar 0.3.1 使用 Swift、AppKit、SwiftUI 和 UserNotifications 实现，无第三方运行依赖，采用 MIT 许可证。
+A native macOS menu bar app for monitoring Mihomo proxy nodes and groups. Choose what to monitor, view latency in the menu bar, and receive macOS notifications when a check fails or recovers.
 
-## 功能
+NodeBar **0.4.0** uses Swift, AppKit, SwiftUI, and UserNotifications, with no third-party runtime dependencies. Licensed under MIT.
 
-- 自动寻找本机 Mihomo Unix Socket，读取策略组和节点列表，无需修改源码或填写私人节点名称。
-- 自主选择多个节点，支持搜索、随时添加和取消监控；首次启动打开节点管理窗口。
-- 监控策略组时，递归跟随该组当前选中的最终节点；在 Clash 中切换节点后自动跟随。
-- 从节点名称读取国旗，其余操作图标使用 macOS 原生 SF Symbols，菜单栏不加前置地球图标。
-- 菜单栏默认显示前 3 项，可在设置中调整为 1–8 项；更多项目通过 `+N` 提示，完整状态在菜单中查看。
-- 默认开启主动测速，提供 15 秒、30 秒、1 分钟和 5 分钟刷新间隔，默认 30 秒；也可切换为仅读取历史。
-- 本地控制器连接失败、节点测速超时或不可用时发送系统通知；相同异常持续期间只提醒一次，恢复通知可关闭。
-- 通知默认隐藏节点名称；支持开机启动，设置与选择保存在当前用户的本机偏好设置中。
+## Features
 
-## 安装
+- Automatically discovers local Mihomo Unix Sockets and loads available nodes and groups.
+- Search and select multiple nodes; monitor a group to follow its currently selected final node.
+- Displays flags from node names, uses native SF Symbols for controls, and keeps the menu bar free of a leading globe icon.
+- Shows up to 1–8 items in the menu bar (3 by default), with `+N` for additional items.
+- Active checks every 15 seconds, 30 seconds, 1 minute, or 5 minutes; defaults to 30 seconds. A history-only mode is also available.
+- Sends notifications for controller connection errors, failed checks, and timeouts. Repeated alerts are suppressed until the state changes; recovery alerts are optional.
+- Hides node names in notifications by default. Supports launch at login and stores preferences locally.
+- Complete English and Simplified Chinese interfaces, menus, and notifications. Choose **Follow System**, **English**, or **简体中文** in settings.
 
-需要 **macOS 13 或更新版本**。[下载完整源码 ZIP](https://github.com/kyotoIndex/NodeBar/archive/refs/heads/main.zip) 并解压，双击文件夹中的 **`install.command`**。
+## Download and install
 
-安装脚本检查 macOS 和 Apple Command Line Tools，然后编译、签名、安装并启动 NodeBar。若尚未安装 Command Line Tools，脚本会打开 Apple 官方安装窗口；完成后再次双击 `install.command`。首次安装开发工具需要按 Apple 提示下载，NodeBar 的构建过程没有包下载步骤。
+Requires **macOS 13 or later**. Both release downloads support **Apple silicon and Intel Macs**.
 
-脚本在 `/Applications` 可写时安装到 `/Applications/NodeBar.app`，否则使用 `~/Applications/NodeBar.app`。构建与签名全部成功后才退出并替换旧程序，临时文件自动清理。脚本不需要 `sudo`，也不会修改 Gatekeeper 或文件隔离设置。若 macOS 提示无法打开下载的脚本，可按照系统「隐私与安全性」中的提示允许打开。
+[Latest release and bilingual release notes](https://github.com/kyotoIndex/NodeBar/releases/latest)
 
-也可以在源码目录运行：
+| Download | Initial interface language |
+| --- | --- |
+| [NodeBar for macOS — English](https://github.com/kyotoIndex/NodeBar/releases/download/v0.4.0/NodeBar-0.4.0-macOS-English.zip) | English |
+| [NodeBar for macOS — 简体中文](https://github.com/kyotoIndex/NodeBar/releases/download/v0.4.0/NodeBar-0.4.0-macOS-Chinese.zip) | Simplified Chinese |
+
+Both apps include both languages; you can switch languages in settings. Install one variant at a time.
+
+Unzip the download, move **NodeBar.app** to **Applications**, and open it. These builds are ad hoc signed and are not Developer ID signed or notarized. If macOS blocks the downloaded app, open **System Settings → Privacy & Security → Open Anyway**, then confirm the system prompt.
+
+Allow notifications when prompted. You can change this later in **System Settings → Notifications → NodeBar**.
+
+### Build and install from source
+
+[Download the source ZIP](https://github.com/kyotoIndex/NodeBar/archive/refs/heads/main.zip), extract it, and double-click **`install.command`**. The script checks for Apple Command Line Tools; if missing, it opens Apple's installer. Run `install.command` again after those tools finish installing.
+
+The script compiles, ad hoc signs, installs, and launches NodeBar. It uses `/Applications/NodeBar.app` when writable, otherwise `~/Applications/NodeBar.app`. It replaces the previous app only after the new build and signature succeed, and cleans temporary files automatically. No `sudo`, Gatekeeper changes, or quarantine removal is used. If macOS blocks the downloaded script, use the system's **Privacy & Security → Open Anyway** prompt.
+
+From Terminal in the source directory:
 
 ```bash
 ./install.command
-```
-
-或直接构建安装：
-
-```bash
+# Or build and install directly:
 ./build.sh
 ```
 
-首次启动时允许 NodeBar 发送通知，也可随后在 macOS「系统设置 → 通知 → NodeBar」调整。若之前拒绝过授权，需要从系统设置重新开启。
+Installing Apple's development tools requires a download. Building NodeBar has no package download step.
 
-仅构建、保留当前运行的程序：
+## Usage
 
-```bash
-./build.sh --build-only
-```
+1. Start Clash Verge Rev or another client that exposes a local Mihomo Unix Socket control API.
+2. Open NodeBar. It discovers the local controller and opens the monitor manager on first launch. You can also open **Manage Monitors…** from the menu later.
+3. Search for and select nodes or groups. A node selection stays fixed; a group selection follows the group's current final node.
+4. Adjust the menu bar item count in the manager. In settings, configure language, connection discovery or a manual Socket path, active checks, timeouts, and notifications.
 
-输出为 `dist/NodeBar.app`，不会安装或启动。安装到自选位置：
+NodeBar uses Mihomo's `/proxies` and per-node delay APIs; it does not require a specific Clash Verge version. Automatic discovery checks common local Socket locations. For a custom location, disable automatic connection and enter the absolute Unix Socket path.
 
-```bash
-NODEBAR_APP_PATH="$HOME/Applications/NodeBar.app" ./build.sh --install
-```
+### Active checks and history-only mode
 
-应用采用本机临时签名，默认标识符为 `io.github.nodebar.NodeBar`。需要独立偏好设置与通知身份时，可在构建时设置 `NODEBAR_BUNDLE_ID`。GitHub Actions 也会生成可下载的应用 ZIP；正式分发的二进制应由发布者完成 Developer ID 签名与公证，当前版本推荐从源码本机构建。
+With active checks enabled, each refresh asks Mihomo to visit **`https://cp.cloudflare.com/generate_204`** through each selected final proxy node. Only monitored selections are checked; selections that resolve to the same node share one check. Non-proxy adapters such as `DIRECT` and `REJECT` are skipped. NodeBar does not configure a direct fallback or change proxy settings or group selections.
 
-## 使用
+The default check deadline is **10 seconds**, with 5, 10, and 15 seconds available in settings. The local API wait allows another 2 seconds. Establishing a proxy chain and Mihomo's additional request for unified delay both take time, so the full check can take longer than the latency eventually displayed. A **Test timed out** status means the test endpoint did not respond within the chosen deadline.
 
-1. 启动 Clash Verge Rev 或其他提供 Mihomo Unix Socket 控制接口的客户端。
-2. 启动 NodeBar，自动发现本机接口并打开节点管理窗口。尚未启动代理客户端时，可稍后在菜单中打开「管理监控节点…」。
-3. 搜索并勾选节点或策略组。选节点会固定监控该节点，选策略组会跟随其当前选择。
-4. 在节点管理窗口底部调整菜单栏显示数量；在「设置… → 连接与通知」中调整自动连接、手动 Socket 路径、主动测速与通知选项。
+Turn active checks off to read only Mihomo's existing health-check history. Refreshing then reloads those records. A positive latency older than 5 minutes remains visible with an `*`; details show its original timestamp. Empty records show no history. Old or missing history waits for new data without triggering a node-failure alert.
 
-自动连接扫描常见客户端使用的本机 Socket 路径，并通过本地接口读取完整列表。使用自定义路径时，可关闭自动连接并填入 Unix Socket 绝对路径。程序依赖 Mihomo 的 `/proxies` 与节点测速接口，无须绑定特定 Clash Verge 版本。
+Controller connection failures, missing monitors, invalid group resolution, and recent failed node checks can trigger notifications. Following a group switch starts tracking the newly selected node. Persistent incidents produce one alert, and notification names are hidden by default.
 
-### 主动测速与历史模式
+## Privacy and local data
 
-默认模式下，每次刷新会让 Mihomo 通过选中的最终代理节点，访问固定的 HTTPS 地址 `https://cp.cloudflare.com/generate_204`。只有勾选监控的项目才会触发检查；多个项目指向同一最终节点时合并检测。`DIRECT`、`REJECT` 等非代理出口跳过测速，失败显示异常。NodeBar 不设置直连回退，不修改代理配置或策略组选择。
+NodeBar itself communicates with local Mihomo through **`AF_UNIX`**. It reads nodes, group selections, and latency history, and submits active-check requests through that same local interface. There is no telemetry, upload service, remote update check, or third-party runtime dependency.
 
-检测期限默认为 10 秒，可在「连接与通知」中选 5、10 或 15 秒。本地接口等待时间比检测期限多 2 秒。链式代理建立连接，以及 Mihomo 的“统一延迟”所需的额外请求，都会占用整轮检测时间，因此检测期限独立于最终显示的延迟值。
+**Active checks generate external traffic.** Mihomo sends HTTPS requests through the selected proxy node. The test server receives the request, proxy exit IP, and timing information; the proxy provider can observe the corresponding connection. Mihomo's configuration controls DNS resolution and the proxy chain. Select trusted nodes and configure Mihomo's DNS and routing for your privacy needs.
 
-关闭主动测速后，刷新只读取 Mihomo 已有的健康检查历史，数值更新时间由该历史决定。超过 5 分钟的正延迟仍显示为毫秒并带 `*` 标记，详情显示历史值和原始记录时间；空记录显示暂无历史。旧记录与空记录等待新数据，不触发节点故障通知。
+In history-only mode, NodeBar submits no external-check requests. Mihomo's own health checks and other applications continue to follow their own configurations.
 
-控制器连接失败、监控项目消失、策略组解析异常或节点近期检测失败时发送提醒。策略组切换到其他节点时，重新跟踪新节点的状态。相同异常持续期间不会每次刷新重复提醒；通知名称默认隐藏，避免在锁屏或通知横幅中显示节点信息。
+Preferences store the Socket path, selected monitors, language, and interface options locally for the current user. The latest controller snapshot stays in process memory. Launch at login manages a local user LaunchAgent. Notifications are displayed by macOS.
 
-## 通信与本地数据
-
-NodeBar 本身通过系统 `AF_UNIX` Socket 连接本机 Mihomo，读取节点列表、策略组选择和历史延迟；主动测速也由这个本地接口下达。NodeBar 没有遥测、上传、远程更新检查或第三方运行依赖。
-
-**主动测速会产生外部流量。** 实际 HTTPS 请求由 Mihomo 经所选代理节点发出，检测服务器会收到请求、代理出口 IP 和检测时间；代理服务商也能观察相应连接。域名解析和代理链路由 Mihomo 配置处理。请只监控可信的代理节点，并按自己的隐私需求配置 Mihomo 的 DNS 与路由。
-
-切换为历史模式后，NodeBar 只读取本机记录，不下达外部检测请求。Mihomo 自己的健康检查与其他应用的流量继续由各自配置管理。
-
-偏好设置保存 Socket 路径、监控列表和界面选项；最新快照保存在进程内存中。开机启动仅管理当前用户的本机 LaunchAgent。macOS 系统通知由系统在本机展示。
-
-## 开发
+## Development
 
 ```bash
 ./test.sh
 ./build.sh --build-only
 ```
 
-测试使用本地构造的数据验证自动发现、节点解析与通知规则，不连接外网。构建脚本直接用 `swiftc` 编译 `main.swift` 与 `Sources/*.swift`，无包下载步骤。GitHub Actions 执行脚本语法检查、测试与构建，生成应用压缩包。
+`--build-only` writes `dist/NodeBar.app` without installing or launching it. By default, the app follows the system language. Build and package both universal release variants with:
 
-```text
-main.swift               菜单栏、设置窗口与应用生命周期
-Sources/                 本地控制接口、节点发现、测速与状态通知逻辑
-Tests/                   本地规则测试
-install.command          双击检查环境、编译、安装并启动
-build.sh                 构建、签名与安装
-test.sh                  运行本地规则测试
-.github/workflows/       CI 构建
-LICENSE                  MIT 许可证
+```bash
+./package.sh
 ```
 
-## 许可证
+To build a single variant:
+
+```bash
+NODEBAR_ARCH=universal NODEBAR_LANGUAGE=en ./build.sh --build-only
+NODEBAR_ARCH=universal NODEBAR_LANGUAGE=zh-Hans ./build.sh --build-only
+```
+
+Each command writes `dist/NodeBar.app`; copy or package the first output before building the second. To install elsewhere:
+
+```bash
+NODEBAR_APP_PATH="$HOME/Applications/NodeBar.app" ./build.sh --install
+```
+
+The default bundle identifier is `io.github.nodebar.NodeBar`. Set `NODEBAR_BUNDLE_ID` when building if a separate preferences and notification identity is needed.
+
+Tests use local fixtures and local Socket servers; they do not connect to external services. The build script compiles `main.swift` and `Sources/*.swift` directly with `swiftc`. GitHub Actions runs script syntax checks, tests, and app builds.
+
+```text
+main.swift               Menu bar, settings window, and app lifecycle
+Sources/                 Local API, discovery, checks, alerts, and localization
+Tests/                   Local behavior tests
+install.command          Environment check, build, install, and launch
+build.sh                 Build, sign, and install
+test.sh                  Run local tests
+package.sh               Build English and Chinese universal release ZIPs
+.github/workflows/       CI builds
+LICENSE                  MIT license
+```
+
+## License
 
 [MIT](LICENSE) · Copyright © 2026 NodeBar contributors

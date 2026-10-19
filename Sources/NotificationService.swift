@@ -3,7 +3,7 @@ import UserNotifications
 
 final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     private let center = UNUserNotificationCenter.current()
-    private var authorized = false
+    private(set) var authorized = false
     var onStatusChange: ((String) -> Void)?
     var onDeliveryError: ((String) -> Void)?
     var onOpen: (() -> Void)?
@@ -19,7 +19,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             if settings.authorizationStatus == .notDetermined && requestIfNeeded {
                 self.center.requestAuthorization(options: [.alert, .sound]) { [weak self] _, error in
                     if let error {
-                        DispatchQueue.main.async { self?.onDeliveryError?("通知权限请求失败：\(error.localizedDescription)") }
+                        DispatchQueue.main.async { self?.onDeliveryError?(L("通知权限请求失败：\(error.localizedDescription)", "Notification permission request failed: \(error.localizedDescription)")) }
                     }
                     self?.refreshAuthorization(requestIfNeeded: false)
                 }
@@ -28,10 +28,10 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             let allowed = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
             let text: String
             switch settings.authorizationStatus {
-            case .authorized, .provisional: text = "已允许"
-            case .denied: text = "已关闭，请在系统设置中允许 NodeBar 通知"
-            case .notDetermined: text = "尚未授权"
-            default: text = "权限不可用"
+            case .authorized, .provisional: text = L("已允许", "Allowed")
+            case .denied: text = L("已关闭，请在系统设置中允许 NodeBar 通知", "Disabled. Allow NodeBar notifications in System Settings")
+            case .notDetermined: text = L("尚未授权", "Not authorized yet")
+            default: text = L("权限不可用", "Permission unavailable")
             }
             DispatchQueue.main.async {
                 self.authorized = allowed
@@ -52,7 +52,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
             content.threadIdentifier = "nodebar.monitoring"
             center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)) { [weak self] error in
                 if let error {
-                    DispatchQueue.main.async { self?.onDeliveryError?("通知发送失败：\(error.localizedDescription)") }
+                    DispatchQueue.main.async { self?.onDeliveryError?(L("通知发送失败：\(error.localizedDescription)", "Notification delivery failed: \(error.localizedDescription)")) }
                 }
             }
         }
@@ -61,16 +61,16 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     func sendTest() {
         guard authorized else {
             refreshAuthorization(requestIfNeeded: true)
-            onDeliveryError?("请允许通知后，再发送测试通知。")
+            onDeliveryError?(L("请允许通知后，再发送测试通知。", "Allow notifications before sending a test notification."))
             return
         }
         let content = UNMutableNotificationContent()
-        content.title = "NodeBar 通知已就绪"
-        content.body = "监控异常及恢复时，你会收到系统通知。"
+        content.title = L("NodeBar 通知已就绪", "NodeBar notifications are ready")
+        content.body = L("监控异常及恢复时，你会收到系统通知。", "You will receive system notifications when monitoring detects a problem or recovery.")
         content.sound = .default
         center.add(UNNotificationRequest(identifier: "nodebar.test", content: content, trigger: nil)) { [weak self] error in
             if let error {
-                DispatchQueue.main.async { self?.onDeliveryError?("通知发送失败：\(error.localizedDescription)") }
+                DispatchQueue.main.async { self?.onDeliveryError?(L("通知发送失败：\(error.localizedDescription)", "Notification delivery failed: \(error.localizedDescription)")) }
             }
         }
     }

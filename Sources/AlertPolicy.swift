@@ -44,16 +44,16 @@ enum MonitoringState: Equatable, Sendable {
     var barText: String {
         switch self {
         case .healthy(let delay, _): return "\(delay)ms"
-        case .failed: return "失败"
-        case .timedOut: return "检测超时"
-        case .unsupported: return "跳过"
+        case .failed: return L("失败", "Failed")
+        case .timedOut: return L("检测超时", "Test timed out")
+        case .unsupported: return L("跳过", "Skipped")
         case .checking: return "…"
         case .stale(_, let delay): return delay.flatMap { $0 > 0 ? "\($0)ms*" : nil } ?? "--"
         case .noHistory: return "--"
-        case .missing: return "缺失"
-        case .invalidGroup: return "组异常"
-        case .direct: return "直连"
-        case .rejected: return "拒绝"
+        case .missing: return L("缺失", "Missing")
+        case .invalidGroup: return L("组异常", "Group error")
+        case .direct: return L("直连", "Direct")
+        case .rejected: return L("拒绝", "Rejected")
         }
     }
 
@@ -76,21 +76,21 @@ enum MonitoringState: Equatable, Sendable {
     func detailText(formatter: DateFormatter) -> String {
         switch self {
         case .healthy(let delay, let time):
-            return "延迟 \(delay) ms · \(formatter.string(from: time))"
+            return L("延迟 \(delay) ms · \(formatter.string(from: time))", "Latency \(delay) ms · \(formatter.string(from: time))")
         case .failed(let time):
-            return "Mihomo 测速失败或超时 · \(formatter.string(from: time))"
-        case .timedOut(let time): return "检测地址未在期限内响应 · \(formatter.string(from: time))"
-        case .unsupported: return "此项目不执行主动测速"
-        case .checking: return "等待本轮主动测速结果"
+            return L("Mihomo 测速失败或超时 · \(formatter.string(from: time))", "Mihomo test failed or timed out · \(formatter.string(from: time))")
+        case .timedOut(let time): return L("检测地址未在期限内响应 · \(formatter.string(from: time))", "The test endpoint did not respond before the deadline · \(formatter.string(from: time))")
+        case .unsupported: return L("此项目不执行主动测速", "Active tests are unavailable for this item")
+        case .checking: return L("等待本轮主动测速结果", "Waiting for this round of active test results")
         case .stale(let lastTime, let delay):
-            let value = delay.map { $0 > 0 ? "历史延迟 \($0) ms" : "上次记录为测速失败" } ?? "历史记录"
-            let time = lastTime.map { formatter.string(from: $0) } ?? "记录时间未知"
-            return "\(value) · 尚未获得新测量 · \(time)"
-        case .noHistory: return "暂无延迟记录"
-        case .missing: return "节点或策略组选项已不存在"
-        case .invalidGroup: return "策略组存在循环引用或无效选择"
-        case .direct: return "策略组当前选择直连"
-        case .rejected: return "策略组当前选择拒绝连接"
+            let value = delay.map { $0 > 0 ? L("历史延迟 \($0) ms", "Previous latency \($0) ms") : L("上次记录为测速失败", "The previous test failed") } ?? L("历史记录", "Previous result")
+            let time = lastTime.map { formatter.string(from: $0) } ?? L("记录时间未知", "Record time unknown")
+            return L("\(value) · 尚未获得新测量 · \(time)", "\(value) · Awaiting a new measurement · \(time)")
+        case .noHistory: return L("暂无延迟记录", "No latency records yet")
+        case .missing: return L("节点或策略组选项已不存在", "The node or proxy group is no longer available")
+        case .invalidGroup: return L("策略组存在循环引用或无效选择", "The proxy group has a circular reference or invalid selection")
+        case .direct: return L("策略组当前选择直连", "The proxy group currently uses a direct connection")
+        case .rejected: return L("策略组当前选择拒绝连接", "The proxy group currently rejects connections")
         }
     }
 
@@ -161,19 +161,19 @@ struct AlertTracker {
             if entry.reportedOutage != incidentKind {
                 let body: String
                 switch state {
-                case .failed, .timedOut: body = "一个监控项目的最新检测显示连接失败或超时。打开 NodeBar 查看详情。"
-                case .missing: body = "一个监控项目的节点或策略组选项已不存在。打开 NodeBar 查看详情。"
-                default: body = "一个监控项目的策略组无法解析。打开 NodeBar 查看详情。"
+                case .failed, .timedOut: body = L("一个监控项目的最新检测显示连接失败或超时。打开 NodeBar 查看详情。", "The latest test for a monitored item failed or timed out. Open NodeBar for details.")
+                case .missing: body = L("一个监控项目的节点或策略组选项已不存在。打开 NodeBar 查看详情。", "A monitored node or proxy group is no longer available. Open NodeBar for details.")
+                default: body = L("一个监控项目的策略组无法解析。打开 NodeBar 查看详情。", "A monitored proxy group could not be resolved. Open NodeBar for details.")
                 }
                 events.append(AlertEvent(kind: .outage, monitorID: selection.id,
-                                         monitorName: selection.name, title: "NodeBar · 监控异常", body: body))
+                                         monitorName: selection.name, title: L("NodeBar · 监控异常", "NodeBar · Monitoring alert"), body: body))
                 entry.reportedOutage = incidentKind
             }
         case .healthy:
             if entry.reportedOutage != nil {
                 events.append(AlertEvent(kind: .recovery, monitorID: selection.id,
-                                         monitorName: selection.name, title: "NodeBar · 监控恢复",
-                                         body: "一个监控项目已获得正常的延迟记录。打开 NodeBar 查看详情。"))
+                                         monitorName: selection.name, title: L("NodeBar · 监控恢复", "NodeBar · Monitoring recovered"),
+                                         body: L("一个监控项目已获得正常的延迟记录。打开 NodeBar 查看详情。", "A monitored item has a successful latency result again. Open NodeBar for details.")))
                 entry.reportedOutage = nil
             }
         case .direct, .rejected, .unsupported:
@@ -192,17 +192,17 @@ struct AlertTracker {
             controllerFailed = true
             let body: String
             switch error {
-            case .timedOut: body = "读取本机 Mihomo 状态超时。打开 NodeBar 查看详情。"
-            case .unavailable: body = "无法连接本机 Mihomo。打开 NodeBar 检查连接设置。"
-            case .invalidResponse: body = "本机 Mihomo 返回的数据无法读取。打开 NodeBar 查看详情。"
+            case .timedOut: body = L("读取本机 Mihomo 状态超时。打开 NodeBar 查看详情。", "Reading the local Mihomo status timed out. Open NodeBar for details.")
+            case .unavailable: body = L("无法连接本机 Mihomo。打开 NodeBar 检查连接设置。", "Cannot connect to local Mihomo. Open NodeBar to check the connection settings.")
+            case .invalidResponse: body = L("本机 Mihomo 返回的数据无法读取。打开 NodeBar 查看详情。", "The response from local Mihomo could not be read. Open NodeBar for details.")
             }
             return [AlertEvent(kind: .controllerFailure, monitorID: nil, monitorName: nil,
-                               title: "NodeBar · 本机连接异常", body: body)]
+                               title: L("NodeBar · 本机连接异常", "NodeBar · Local connection alert"), body: body)]
         }
         guard controllerFailed else { return [] }
         controllerFailed = false
         return [AlertEvent(kind: .controllerRecovery, monitorID: nil, monitorName: nil,
-                           title: "NodeBar · 本机连接恢复", body: "已恢复读取本机 Mihomo 状态。")]
+                           title: L("NodeBar · 本机连接恢复", "NodeBar · Local connection restored"), body: L("已恢复读取本机 Mihomo 状态。", "Reading the local Mihomo status has resumed."))]
     }
 
     mutating func reconcile(selectedIDs: Set<String>) {

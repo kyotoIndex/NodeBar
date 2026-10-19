@@ -8,7 +8,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
     @Published private(set) var connectionMessage: String?
     @Published private(set) var isRefreshing = false
     @Published private(set) var lastUpdated: Date?
-    @Published private(set) var notificationStatus = "正在读取权限…"
+    @Published private(set) var notificationStatus = L("正在读取权限…", "Checking permission…")
     @Published var notice: String?
     @Published var settingsTab = 0
     @Published var settingsQuery = ""
@@ -28,6 +28,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
     private var controllerError: LocalMihomoError?
     private var alerts = AlertTracker()
     private var notificationService: NotificationService!
+    private var notificationWasAllowed = false
     private let dateFormatter: DateFormatter = {
         let value = DateFormatter()
         value.dateFormat = "MM-dd HH:mm:ss"
@@ -63,7 +64,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
         notificationService = NotificationService()
         notificationService.onStatusChange = { [weak self] status in
             guard let self else { return }
-            let newlyAllowed = status == "已允许" && self.notificationStatus != status
+            let allowed = self.notificationService.authorized
+            let newlyAllowed = allowed && !self.notificationWasAllowed
+            self.notificationWasAllowed = allowed
             self.notificationStatus = status
             if newlyAllowed && self.preferences.notificationsEnabled {
                 self.alerts.reset()
@@ -257,6 +260,16 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
         updateDisplay()
     }
 
+    func setLanguage(_ language: String) {
+        guard L10n.options.contains(language) else { return }
+        objectWillChange.send()
+        UserDefaults.standard.set(language, forKey: L10n.preferenceKey)
+        notice = nil
+        connectionMessage = controllerError.map { description(for: $0) }
+        notificationService.refreshAuthorization(requestIfNeeded: false)
+        updateDisplay()
+    }
+
     func setRecoveryNotifications(_ enabled: Bool) {
         preferences.recoveryNotifications = enabled
         preferences.save()
@@ -310,7 +323,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
     func applySocketPath(_ value: String) {
         let path = NSString(string: value.trimmingCharacters(in: .whitespacesAndNewlines)).expandingTildeInPath
         guard path.hasPrefix("/"), !path.utf8.contains(0), path.utf8.count < 104 else {
-            notice = "请输入有效的本机 Socket 绝对路径（UTF-8 长度小于 104 字节）。"
+            notice = L("请输入有效的本机 Socket 绝对路径（UTF-8 长度小于 104 字节）。", "Enter an absolute local socket path shorter than 104 UTF-8 bytes.")
             return
         }
         preferences.socketPath = path
@@ -379,14 +392,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
 
     func detail(for selection: MonitorSelection) -> String {
         if let connectionMessage { return connectionMessage }
-        return readings[selection.id]?.detailText(formatter: dateFormatter) ?? "正在读取…"
+        return readings[selection.id]?.detailText(formatter: dateFormatter) ?? L("正在读取…", "Loading…")
     }
 
     private func updateDisplay() {
         guard statusItem != nil else { return }
         let monitors = preferences.monitors
         let title: String
-        if let error = controllerError { title = error == .timedOut ? "超时" : "未连接" }
+        if let error = controllerError { title = error == .timedOut ? L("超时", "Timed out") : L("未连接", "Disconnected") }
         else if monitors.isEmpty { title = "NodeBar" }
         else {
             var segments = monitors.prefix(preferences.barLimit).map { selection in
@@ -397,7 +410,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
         }
         statusItem.button?.title = title
         statusItem.button?.image = nil
-        statusItem.button?.toolTip = monitors.isEmpty ? "NodeBar · 点击选择监控节点" : monitors.map {
+        statusItem.button?.toolTip = monitors.isEmpty ? L("NodeBar · 点击选择监控节点", "NodeBar · Click to select monitors") : monitors.map {
             "\($0.name)\n\(detail(for: $0))"
         }.joined(separator: "\n\n")
         if !menuTracking { rebuildMenu() }
@@ -428,48 +441,55 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
         guard let menu = statusItem.menu else { return }
         menu.removeAllItems()
         if let connectionMessage { addItem(menu, connectionMessage, symbol: "exclamationmark.triangle") }
-        if preferences.monitors.isEmpty { addItem(menu, "尚未选择监控节点") }
+        if preferences.monitors.isEmpty { addItem(menu, L("尚未选择监控节点", "No monitors selected")) }
         for selection in preferences.monitors {
             let state = readings[selection.id]
-            let title = "\(selection.name)  ·  \(controllerError == nil ? (state?.barText ?? "--") : "未连接")"
+            let title = "\(selection.name)  ·  \(controllerError == nil ? (state?.barText ?? "--") : L("未连接", "Disconnected"))"
             let item = addItem(menu, title, symbol: state?.symbolName ?? "network")
             let detailMenu = NSMenu()
-            if selection.kind == .group { addItem(detailMenu, "当前节点：\(terminalName(for: selection))") }
+            if selection.kind == .group { addItem(detailMenu, L("当前节点：\(terminalName(for: selection))", "Current node: \(terminalName(for: selection))")) }
             addItem(detailMenu, detail(for: selection))
             detailMenu.addItem(.separator())
-            addItem(detailMenu, "停止监控", symbol: "minus.circle", action: #selector(removeMonitor(_:)), value: selection.id)
+            addItem(detailMenu, L("停止监控", "Stop monitoring"), symbol: "minus.circle", action: #selector(removeMonitor(_:)), value: selection.id)
             item.submenu = detailMenu
         }
-        if let lastUpdated { addItem(menu, "最后读取：\(dateFormatter.string(from: lastUpdated))") }
+        if let lastUpdated { addItem(menu, L("最后读取：\(dateFormatter.string(from: lastUpdated))", "Last updated: \(dateFormatter.string(from: lastUpdated))")) }
         menu.addItem(.separator())
-        addItem(menu, "管理监控节点…", symbol: "slider.horizontal.3", action: #selector(manageMonitors), key: "m")
+        addItem(menu, L("管理监控节点…", "Manage Monitors…"), symbol: "slider.horizontal.3", action: #selector(manageMonitors), key: "m")
         let measuring = preferences.activeProbing && !preferences.monitors.isEmpty
-        addItem(menu, isRefreshing ? (measuring ? "正在测速…" : "正在刷新…") : (measuring ? "立即测速" : "刷新"),
+        addItem(menu, isRefreshing ? (measuring ? L("正在测速…", "Testing…") : L("正在刷新…", "Refreshing…")) : (measuring ? L("立即测速", "Test Now") : L("刷新", "Refresh")),
                 symbol: "arrow.clockwise", action: #selector(manualRefresh), key: "r")
-        let probing = addItem(menu, "主动测速", symbol: "waveform.path.ecg", action: #selector(toggleActiveProbing))
+        let probing = addItem(menu, L("主动测速", "Active Probing"), symbol: "waveform.path.ecg", action: #selector(toggleActiveProbing))
         probing.state = preferences.activeProbing ? .on : .off
-        let intervalItem = addItem(menu, "刷新间隔", symbol: "timer")
+        let intervalItem = addItem(menu, L("刷新间隔", "Refresh Interval"), symbol: "timer")
         let intervalMenu = NSMenu()
         for interval in AppPreferences.intervals {
-            let item = addItem(intervalMenu, interval < 60 ? "\(Int(interval)) 秒" : "\(Int(interval / 60)) 分钟",
+            let item = addItem(intervalMenu, interval < 60 ? L("\(Int(interval)) 秒", "\(Int(interval)) sec") : L("\(Int(interval / 60)) 分钟", "\(Int(interval / 60)) min"),
                                action: #selector(changeInterval(_:)), value: interval)
             item.state = interval == preferences.refreshInterval ? .on : .off
         }
         intervalItem.submenu = intervalMenu
-        let notifications = addItem(menu, "异常通知", symbol: "bell", action: #selector(toggleNotifications))
+        let notifications = addItem(menu, L("异常通知", "Failure Notifications"), symbol: "bell", action: #selector(toggleNotifications))
         notifications.state = preferences.notificationsEnabled ? .on : .off
-        let startup = addItem(menu, "开机自动启动", symbol: "power", action: #selector(toggleAutoStart))
+        let startup = addItem(menu, L("开机自动启动", "Launch at Login"), symbol: "power", action: #selector(toggleAutoStart))
         startup.state = autoStartEnabled ? .on : .off
-        addItem(menu, "设置…", symbol: "gearshape", action: #selector(openSettings), key: ",")
+        let languageItem = addItem(menu, L("语言", "Language"), symbol: "character.bubble")
+        let languageMenu = NSMenu()
+        for (value, label) in [("system", L("跟随系统", "Follow System")), ("en", "English"), ("zh-Hans", "简体中文")] {
+            let item = addItem(languageMenu, label, action: #selector(changeLanguage(_:)), value: value)
+            item.state = L10n.preference == value ? .on : .off
+        }
+        languageItem.submenu = languageMenu
+        addItem(menu, L("设置…", "Settings…"), symbol: "gearshape", action: #selector(openSettings), key: ",")
         menu.addItem(.separator())
-        addItem(menu, "退出 NodeBar", symbol: "xmark.circle", action: #selector(quitApp), key: "q")
+        addItem(menu, L("退出 NodeBar", "Quit NodeBar"), symbol: "xmark.circle", action: #selector(quitApp), key: "q")
     }
 
     private func description(for error: LocalMihomoError) -> String {
         switch error {
-        case .unavailable: return "无法连接本机 Mihomo"
-        case .timedOut: return "本机 Mihomo 响应超时"
-        case .invalidResponse: return "Mihomo 数据格式异常"
+        case .unavailable: return L("无法连接本机 Mihomo", "Cannot connect to local Mihomo")
+        case .timedOut: return L("本机 Mihomo 响应超时", "Local Mihomo request timed out")
+        case .invalidResponse: return L("Mihomo 数据格式异常", "Invalid Mihomo response")
         }
     }
 
@@ -478,6 +498,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
     @objc private func manualRefresh() { refresh() }
     @objc private func toggleActiveProbing() { setActiveProbing(!preferences.activeProbing) }
     @objc private func toggleNotifications() { setNotifications(!preferences.notificationsEnabled) }
+    @objc private func changeLanguage(_ sender: NSMenuItem) {
+        if let language = sender.representedObject as? String { setLanguage(language) }
+    }
     @objc private func changeInterval(_ sender: NSMenuItem) {
         if let interval = sender.representedObject as? Double { setRefreshInterval(interval) }
     }
@@ -498,7 +521,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate, Obse
             objectWillChange.send()
             updateDisplay()
         } catch {
-            notice = "开机启动设置失败：\(error.localizedDescription)"
+            notice = L("开机启动设置失败：\(error.localizedDescription)", "Could not change launch at login: \(error.localizedDescription)")
             showSettings(tab: 1)
         }
     }

@@ -14,15 +14,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check installer syntax
-        run: bash -n build.sh install.command test.sh
+        run: bash -n build.sh install.command test.sh package.sh
       - name: Test node discovery and alert rules
         run: ./test.sh
-      - name: Build signed app bundle
-        run: ./build.sh --build-only
-      - name: Archive app bundle
-        run: ditto -c -k --keepParent dist/NodeBar.app dist/NodeBar.zip
-      - name: Upload app bundle
+      - name: Build and package bilingual universal apps
+        run: ./package.sh
+      - name: Upload release packages
         uses: actions/upload-artifact@v4
         with:
-          name: NodeBar-macos
-          path: dist/NodeBar.zip
+          name: NodeBar-macOS-English-Chinese
+          path: dist/NodeBar-*-macOS-*.zip
